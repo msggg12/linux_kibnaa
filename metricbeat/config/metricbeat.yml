@@ -1,0 +1,89 @@
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+metricbeat.modules:
+- module: system
+  metricsets:
+    - cpu
+    - memory
+    - load
+    - network
+    - process_summary  # Only summary, not individual processes
+  enabled: true
+  period: 30s  # Increased from 10s to reduce load
+
+- module: docker
+  metricsets:
+    - container
+    - cpu
+    - memory
+    - network
+  hosts: ["unix:///var/run/docker.sock"]
+  period: 30s  # Increased from 10s
+  enabled: true
+
+- module: elasticsearch
+  metricsets:
+    - node_stats
+    - cluster_stats
+  period: 60s  # Increased to 60s for less frequent checks
+  hosts: ["http://elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+- module: kibana
+  metricsets:
+    - status
+  period: 60s  # Increased to 60s
+  hosts: ["http://kibana:5601"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+- module: logstash
+  metricsets:
+    - node_stats
+  period: 60s  # Increased to 60s, removed node metricset
+  hosts: ["http://logstash-fast:9600", "http://logstash-enrich:9601"]
+
+- module: redis
+  metricsets:
+    - info
+  period: 60s  # Increased to 60s, removed keyspace for less overhead
+  hosts: ["redis:6379"]
+  password: "${REDIS_PASSWORD}"
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  bulk_max_size: 1000  # Reduced bulk size
+  flush_interval: 30s   # Less frequent flushes
+
+setup.kibana:
+  host: "http://kibana:5601"
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+setup.dashboards.enabled: true
+setup.dashboards.retry.enabled: true
+setup.dashboards.retry.interval: 1s
+setup.dashboards.retry.max: 5
+
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "metricbeat"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy: "metricbeat"
+
+setup.template.settings:
+  index.number_of_shards: 1
+  index.codec: best_compression
+  index.refresh_interval: 30s  # Less frequent refreshes
+
+logging.level: warn  # Changed from info to warn
+logging.to_files: true
+logging.files:
+  path: /var/log/metricbeat
+  name: metricbeat
+  keepfiles: 3  # Reduced from 7 to save disk space
+  permissions: 0644

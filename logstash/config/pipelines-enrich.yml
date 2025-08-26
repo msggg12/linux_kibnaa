@@ -1,0 +1,6 @@
+- pipeline.id: cloudfront-enrich
+  path.config: "/usr/share/logstash/pipeline-enrich/*.conf"
+  pipeline.workers: 3
+  pipeline.batch.size: 125
+  pipeline.batch.delay: 5
+  queue.type: memory

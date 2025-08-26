@@ -1,0 +1,14 @@
+pipeline.ordered: auto
+dead_letter_queue.enable: false
+api.enabled: true
+log.level: info
+pipeline.workers: 3
+pipeline.batch.size: 125
+pipeline.batch.delay: 5
+queue.type: memory
+
+# Monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch:9200"]
+xpack.monitoring.elasticsearch.username: "logstash_system"
+xpack.monitoring.elasticsearch.password: "${ELASTIC_PASSWORD}"

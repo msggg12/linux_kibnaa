@@ -1,0 +1,80 @@
+filebeat.inputs:
+# --- Docker / Container logs (ყველა container)
+- type: container
+  enabled: true
+  paths:
+    - /var/lib/docker/containers/*/*.log
+  processors:
+    # დაამატე docker metadata (container name, image, labels)
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+    # JSON message parsing
+    - decode_json_fields:
+        fields: ["message"]
+        target: ""
+        overwrite_keys: true
+    # დაამატე logtype container-ის სახელის მიხედვით
+    - script:
+        lang: javascript
+        id: set_logtype
+        source: >
+          function process(event) {
+            var cname = event.Get("container.name");
+            if (cname) {
+              if (cname.indexOf("elasticsearch") !== -1) {
+                event.Put("logtype", "elasticsearch");
+              } else if (cname.indexOf("kibana") !== -1) {
+                event.Put("logtype", "kibana");
+              } else if (cname.indexOf("logstash-enrich") !== -1) {
+                event.Put("logtype", "logstash-enrich");
+              } else if (cname.indexOf("logstash-fast") !== -1) {
+                event.Put("logtype", "logstash-fast");
+              } else if (cname.indexOf("metricbeat") !== -1) {
+                event.Put("logtype", "metricbeat");
+              } else if (cname.indexOf("grafana") !== -1) {
+                event.Put("logtype", "grafana");
+              } else if (cname.indexOf("prometheus") !== -1) {
+                event.Put("logtype", "prometheus");
+              } else if (cname.indexOf("node_exporter") !== -1) {
+                event.Put("logtype", "node_exporter");
+              } else if (cname.indexOf("redis") !== -1) {
+                event.Put("logtype", "redis");
+              } else {
+                event.Put("logtype", "other_container");
+              }
+            }
+          }
+
+# ============================== Output ========================================
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  index: "filebeat-containers-%{+yyyy.MM.dd}"
+
+# ============================== Kibana ========================================
+setup.kibana:
+  host: "http://kibana:5601"
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+# ============================== Templates =====================================
+setup.template.enabled: true
+setup.template.name: "filebeat-containers"
+setup.template.pattern: "filebeat-containers-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+# ============================== ILM ===========================================
+setup.ilm.enabled: false
+
+# ============================== Logging =======================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+

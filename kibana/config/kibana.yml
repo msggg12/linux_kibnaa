@@ -1,0 +1,30 @@
+# Server Configuration
+server.name: kibana
+server.host: 0.0.0.0
+server.port: 5601
+
+# Elasticsearch Configuration
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "${KIBANA_SYSTEM_PASSWORD}"
+
+# Security Configuration
+xpack.security.enabled: true
+xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long_for_encryption"
+xpack.security.encryptionKey: "something_at_least_32_characters_long_for_security"
+xpack.reporting.encryptionKey: "something_at_least_32_characters_long_for_reporting"
+
+# Monitoring
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+xpack.monitoring.kibana.collection.enabled: true
+
+# License Management
+xpack.license_management.ui.enabled: true
+
+# UI Configuration
+server.publicBaseUrl: "http://localhost:5601"
+logging.appenders.file.type: file
+logging.appenders.file.fileName: /usr/share/kibana/logs/kibana.log
+logging.appenders.file.layout.type: json
+
+# The default .kibana index is used automatically

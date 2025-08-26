@@ -1,0 +1,45 @@
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+metricbeat.modules:
+- module: system
+  metricsets:
+    - cpu
+    - load
+    - memory
+    - network
+    - process
+    - process_summary
+  enabled: true
+  period: 10s
+  processes: ['.*']
+
+- module: docker
+  metricsets:
+    - container
+    - cpu
+    - diskio
+    - memory
+    - network
+  hosts: ["unix:///var/run/docker.sock"]
+  period: 10s
+  enabled: true
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: "elastic"
+  password: "Madafaka13!"
+
+setup.kibana:
+  host: "kibana:5601"
+  username: "elastic"
+  password: "Madafaka13!"
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/metricbeat
+  name: metricbeat
+  keepfiles: 7
+  permissions: 0644
