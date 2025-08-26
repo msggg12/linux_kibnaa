@@ -7,5 +7,5 @@ elasticsearch.hosts: ["http://elasticsearch:9200"]
 # elasticsearch.username: kibana_system
 # elasticsearch.password: ${KIBANA_SYSTEM_PASSWORD}
 
-xpack.security.encryptionKey: "change-this-to-a-32char-min-random-string"
+xpack.security.encryptionKey: "wMzSA6HvPTMknGtLbRyFjhVN7EYOVHywAFv1nJcHgEc46W6H"
 xpack.actions.allowedHosts: ['*']
