@@ -1,0 +1,120 @@
+# Prometheus Integrated Configuration
+# ELK Stack + Monitoring Infrastructure
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'elk-monitoring'
+    datacenter: 'primary'
+
+# ==========================================
+# RULES
+# ==========================================
+rule_files:
+  - "rules/*.yml"
+
+# ==========================================
+# ALERTING
+# ==========================================
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# ==========================================
+# SCRAPE CONFIGURATIONS
+# ==========================================
+scrape_configs:
+  # 1. Prometheus Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # 2. Node Exporter - System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # 3. Elasticsearch Monitoring
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # 4. Elasticsearch Direct API (if needed)
+  - job_name: 'elasticsearch-api'
+    static_configs:
+      - targets: ['elasticsearch:9200']
+    scrape_interval: 60s
+    metrics_path: '/_prometheus/metrics'
+    basic_auth:
+      username: 'elastic'
+      password: '${ELASTIC_PASSWORD}'
+
+  # 5. Redis Metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # 6. Docker Container Metrics
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']
+    scrape_interval: 30s
+
+  # 7. Grafana Metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # 8. Kibana Metrics (if available)
+  - job_name: 'kibana'
+    static_configs:
+      - targets: ['kibana:5601']
+    scrape_interval: 60s
+    metrics_path: '/api/stats'
+    basic_auth:
+      username: 'elastic'
+      password: '${ELASTIC_PASSWORD}'
+
+  # 9. Logstash Metrics
+  - job_name: 'logstash-fast'
+    static_configs:
+      - targets: ['logstash-fast:9600']
+    scrape_interval: 30s
+    metrics_path: '/_node/stats'
+
+  - job_name: 'logstash-enrich'
+    static_configs:
+      - targets: ['logstash-enrich:9600']
+    scrape_interval: 30s
+    metrics_path: '/_node/stats'
+
+  # 10. cAdvisor (if running)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+# ==========================================
+# REMOTE WRITE (if using external systems)
+# ==========================================
+# remote_write:
+#   - url: "http://remote-prometheus:9090/api/v1/write"
+
+# ==========================================
+# STORAGE
+# ==========================================
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 10GB

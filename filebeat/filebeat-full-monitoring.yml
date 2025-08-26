@@ -1,0 +1,219 @@
+# Filebeat Full Monitoring Configuration
+# ყველა სერვისის ლოგების შეგროვება Kibana-სთვის
+
+# ==========================================
+# INPUT MODULES - ყველა ლოგის წყარო
+# ==========================================
+filebeat.inputs:
+
+# 1. Docker Container Logs - ყველა კონტეინერი
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+  processors:
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+    - decode_json_fields:
+        fields: ["message"]
+        max_depth: 2
+        target: ""
+        overwrite_keys: true
+    - add_fields:
+        target: log_source
+        fields:
+          collector: filebeat
+          log_type: docker_container
+
+# 2. Grafana Logs
+- type: log
+  paths:
+    - '/var/log/grafana/*.log'
+  fields:
+    service: grafana
+    log_type: application
+    stack: monitoring
+  fields_under_root: true
+  multiline.pattern: '^\d{4}-\d{2}-\d{2}'
+  multiline.negate: true
+  multiline.match: after
+
+# 3. Prometheus Logs  
+- type: log
+  paths:
+    - '/var/log/prometheus/*.log'
+  fields:
+    service: prometheus
+    log_type: application 
+    stack: monitoring
+  fields_under_root: true
+  multiline.pattern: '^level='
+  multiline.negate: true
+  multiline.match: after
+
+# 4. Elasticsearch Logs
+- type: log
+  paths:
+    - '/usr/share/elasticsearch/logs/*.log'
+    - '/usr/share/elasticsearch/logs/*.json'
+  fields:
+    service: elasticsearch
+    log_type: application
+    stack: elk
+  fields_under_root: true
+  exclude_files: ['\.gz$']
+
+# 5. Kibana Logs
+- type: log
+  paths:
+    - '/usr/share/kibana/logs/*.log'
+  fields:
+    service: kibana
+    log_type: application
+    stack: elk
+  fields_under_root: true
+
+# 6. Logstash Logs
+- type: log
+  paths:
+    - '/usr/share/logstash/logs/*.log'
+  fields:
+    service: logstash
+    log_type: application
+    stack: elk
+  fields_under_root: true
+
+# 7. System Logs
+- type: log
+  paths:
+    - '/var/log/syslog'
+    - '/var/log/auth.log'
+    - '/var/log/kern.log'
+  fields:
+    service: system
+    log_type: system
+    stack: infrastructure
+  fields_under_root: true
+
+# 8. Nginx/Apache Logs (if any)
+- type: log
+  paths:
+    - '/var/log/nginx/*.log'
+    - '/var/log/apache2/*.log'
+  fields:
+    service: webserver
+    log_type: access
+    stack: infrastructure
+  fields_under_root: true
+
+# ==========================================
+# PROCESSING - ლოგების დამუშავება
+# ==========================================
+processors:
+  # Docker metadata დამატება
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+      
+  # Host მონაცემების დამატება
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+      
+  # Timestamp დამუშავება
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - '2006-01-02T15:04:05.000Z'
+        - '2006-01-02 15:04:05'
+        - 'Jan _2 15:04:05'
+      test:
+        - '2019-06-22T16:33:51.000Z'
+
+  # Drop empty მესიჯები
+  - drop_event:
+      when:
+        or:
+          - equals:
+              message: ""
+          - equals:
+              message: " "
+
+# ==========================================
+# OUTPUT - Elasticsearch-ში გაგზავნა
+# ==========================================
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  
+  # Index დაყოფა სერვისების მიხედვით
+  indices:
+    - index: "filebeat-grafana-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "grafana"
+    - index: "filebeat-prometheus-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "prometheus"
+    - index: "filebeat-elasticsearch-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "elasticsearch"
+    - index: "filebeat-kibana-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "kibana"
+    - index: "filebeat-logstash-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "logstash"
+    - index: "filebeat-docker-%{+yyyy.MM.dd}"
+      when.equals:
+        log_type: "docker_container"
+    - index: "filebeat-system-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "system"
+    - index: "filebeat-webserver-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "webserver"
+    - index: "filebeat-general-%{+yyyy.MM.dd}"
+
+  # Template settings
+  template.settings:
+    index.number_of_shards: 1
+    index.number_of_replicas: 0
+    index.refresh_interval: "30s"
+    index.codec: "best_compression"
+
+# ==========================================
+# MONITORING
+# ==========================================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+
+# ==========================================
+# LOGGING
+# ==========================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat.log
+  keepfiles: 5
+  permissions: 0644
+
+# ==========================================
+# QUEUE SETTINGS
+# ==========================================
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 1s
+
+# ==========================================
+# PERFORMANCE TUNING
+# ==========================================
+filebeat.config:
+  inputs:
+    reload.enabled: true
+    reload.period: 10s
+  modules:
+    reload.enabled: true
+    reload.period: 10s
