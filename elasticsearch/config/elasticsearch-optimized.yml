@@ -1,0 +1,73 @@
+# Production-Ready Elasticsearch Configuration for High Volume
+cluster.name: "production-cluster"
+node.name: "elasticsearch"
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+
+# Security Configuration with SSL
+xpack.security.enabled: true
+xpack.security.enrollment.enabled: true
+xpack.security.http.ssl.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.http.ssl.keystore.path: certs/http.p12
+xpack.security.transport.ssl.keystore.path: certs/transport.p12
+xpack.security.transport.ssl.truststore.path: certs/transport.p12
+
+# Authentication
+xpack.security.authc.realms.native.native1.order: 0
+
+# Performance Optimizations for High Volume
+bootstrap.memory_lock: true
+
+# Index Management for 1M+ docs/day
+indices.query.bool.max_clause_count: 10000
+indices.memory.index_buffer_size: 40%
+indices.memory.min_index_buffer_size: 96mb
+indices.fielddata.cache.size: 20%
+
+# Thread Pool Optimization
+thread_pool.write.queue_size: 1000
+thread_pool.search.queue_size: 2000
+thread_pool.get.queue_size: 1000
+
+# Cluster Settings
+cluster.routing.allocation.disk.threshold.enabled: true
+cluster.routing.allocation.disk.watermark.low: 85%
+cluster.routing.allocation.disk.watermark.high: 90%
+cluster.routing.allocation.disk.watermark.flood_stage: 95%
+
+# Index Lifecycle Management
+action.auto_create_index: true
+action.destructive_requires_name: true
+
+# Monitoring and License
+xpack.monitoring.collection.enabled: true
+xpack.monitoring.elasticsearch.collection.enabled: true
+xpack.license.self_generated.type: basic
+
+# Logging Optimization
+logger.org.elasticsearch.deprecation: warn
+logger.org.elasticsearch.action.search.SearchService: debug
+
+# Circuit Breaker Settings for High Volume
+indices.breaker.total.limit: 70%
+indices.breaker.fielddata.limit: 40%
+indices.breaker.request.limit: 20%
+
+# Search Performance
+search.max_buckets: 65536
+search.allow_expensive_queries: false
+
+# Index Settings Templates for Log Data
+cluster.max_shards_per_node: 3000
+
+# Network settings
+network.tcp.keep_alive: true
+network.tcp.no_delay: true
+network.tcp.reuse_address: true
+
+# Discovery and Recovery
+gateway.recover_after_time: 5m
+gateway.expected_data_nodes: 1
+gateway.recover_after_data_nodes: 1
