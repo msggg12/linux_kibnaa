@@ -1,0 +1,201 @@
+# Metricbeat Full Monitoring Configuration
+# ყველა სერვისის მეტრიკების შეგროვება
+
+# ==========================================
+# MODULES CONFIGURATION
+# ==========================================
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+# ==========================================
+# MAIN MODULES
+# ==========================================
+metricbeat.modules:
+
+# 1. System Metrics - სისტემური მეტრიკები
+- module: system
+  metricsets:
+    - cpu
+    - load
+    - memory
+    - network
+    - process
+    - process_summary
+    - uptime
+    - socket_summary
+    - filesystem
+    - fsstat
+    - diskio
+  enabled: true
+  period: 10s
+  processes: ['.*']
+  cpu.metrics: ["percentages", "normalized_percentages"]
+  core.metrics: ["percentages"]
+
+# 2. Docker Metrics - ყველა კონტეინერი
+- module: docker
+  metricsets:
+    - container
+    - cpu
+    - diskio
+    - healthcheck
+    - info
+    - memory
+    - network
+  hosts: ["unix:///var/run/docker.sock"]
+  period: 10s
+  enabled: true
+
+# 3. Elasticsearch Metrics
+- module: elasticsearch
+  metricsets:
+    - node
+    - node_stats
+    - cluster_stats
+    - index
+    - index_recovery
+    - index_summary
+    - shard
+  period: 10s
+  hosts: ["http://elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  enabled: true
+
+# 4. Kibana Metrics
+- module: kibana
+  metricsets:
+    - status
+    - stats
+  period: 10s
+  hosts: ["http://kibana:5601"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  enabled: true
+
+# 5. Logstash Metrics
+- module: logstash
+  metricsets:
+    - node
+    - node_stats
+  period: 10s
+  hosts: ["http://logstash-fast:9600", "http://logstash-enrich:9601"]
+  enabled: true
+
+# 6. Redis Metrics
+- module: redis
+  metricsets:
+    - info
+    - keyspace
+  period: 10s
+  hosts: ["redis:6379"]
+  password: "${REDIS_PASSWORD}"
+  enabled: true
+
+# 7. Prometheus Metrics
+- module: prometheus
+  metricsets:
+    - stats
+    - query
+  period: 10s
+  hosts: ["http://prometheus:9090"]
+  metrics_path: /metrics
+  enabled: true
+
+# 8. HTTP Monitoring - ყველა სერვისის დაჩეკება
+- module: http
+  metricsets:
+    - json
+  period: 30s
+  hosts:
+    - "http://elasticsearch:9200"
+    - "http://kibana:5601" 
+    - "http://grafana:3000"
+    - "http://prometheus:9090"
+  path: "/"
+  enabled: true
+
+# 9. Beat Monitoring
+- module: beat
+  metricsets:
+    - stats
+    - state
+  period: 10s
+  hosts: ["http://localhost:5066"]
+  enabled: true
+
+# ==========================================
+# PROCESSORS
+# ==========================================
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+      
+  - add_fields:
+      target: monitoring
+      fields:
+        environment: production
+        datacenter: primary
+        collector: metricbeat
+
+# ==========================================
+# OUTPUT CONFIGURATION
+# ==========================================
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  
+  # Index შაბლონი
+  index: "metricbeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+  
+  template.settings:
+    index.number_of_shards: 1
+    index.number_of_replicas: 0
+    index.refresh_interval: "30s"
+    index.codec: "best_compression"
+
+# ==========================================
+# MONITORING
+# ==========================================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: "elastic"  
+  password: "${ELASTIC_PASSWORD}"
+
+# ==========================================
+# LOGGING
+# ==========================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/metricbeat
+  name: metricbeat.log
+  keepfiles: 5
+  permissions: 0644
+
+# ==========================================
+# PERFORMANCE SETTINGS
+# ==========================================
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 1s
+
+# HTTP Client Settings
+http.timeout: 30s
+http.max_retries: 3
+
+# Setup Template & Dashboards
+setup.template.enabled: true
+setup.dashboards.enabled: true
+setup.kibana:
+  host: "kibana:5601"
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"

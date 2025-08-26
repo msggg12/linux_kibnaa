@@ -1,0 +1,39 @@
+# Enrichment Pipeline - Optimized for Processing Heavy Tasks
+pipeline.ordered: auto
+dead_letter_queue.enable: true
+dead_letter_queue.max_bytes: 512mb
+
+# API Configuration
+api.enabled: true
+api.http.host: "0.0.0.0"
+api.http.port: 9600
+
+# Logging
+log.level: info
+log.format: json
+
+# BALANCED PERFORMANCE SETTINGS for enrichment
+pipeline.workers: 4  # Reduced from 3 to 4, balanced for enrichment tasks
+pipeline.batch.size: 500  # Optimized for complex processing
+pipeline.batch.delay: 50  # Consistent timing
+
+# Queue Configuration
+queue.type: persisted
+queue.max_events: 50000
+queue.max_bytes: 1gb
+queue.checkpoint.acks: 512
+queue.checkpoint.writes: 512
+queue.checkpoint.interval: 1000
+
+# Monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch:9200"]
+xpack.monitoring.elasticsearch.username: "logstash_system"
+xpack.monitoring.elasticsearch.password: "${ELASTIC_PASSWORD}"
+
+# JVM Options for Performance
+config.reload.automatic: false
+config.reload.interval: 3s
+
+# Pipeline Stats
+pipeline.plugin_classloaders: false

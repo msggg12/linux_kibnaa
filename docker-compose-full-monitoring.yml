@@ -1,0 +1,417 @@
+version: '3.8'
+
+services:
+  # ================================
+  # ELASTICSEARCH CLUSTER
+  # ================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    user: "1000:1000"
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=production-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      # OPTIMIZED: 16GB heap for high volume processing
+      - "ES_JAVA_OPTS=-Xms16g -Xmx16g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+UseStringDeduplication"
+      # Performance Tuning
+      - indices.memory.index_buffer_size=40%
+      - indices.memory.min_index_buffer_size=96mb
+      - thread_pool.write.queue_size=1000
+      - thread_pool.search.queue_size=2000
+      # Security Configuration (without SSL for development)
+      - xpack.security.enabled=true
+      - xpack.security.enrollment.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      # Monitoring
+      - xpack.monitoring.collection.enabled=true
+      - xpack.license.self_generated.type=basic
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./elasticsearch/config/elasticsearch-optimized.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - ./logs/elasticsearch:/usr/share/elasticsearch/logs
+    ports: ["9200:9200","9300:9300"]
+    healthcheck:
+      test: ["CMD-SHELL","curl -u elastic:${ELASTIC_PASSWORD} -s http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          memory: 20g
+        reservations:
+          memory: 18g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=elasticsearch,stack=elk"
+
+  # ================================
+  # KIBANA
+  # ================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    ports: ["5601:5601"]
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
+      - KIBANA_SYSTEM_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.monitoring.ui.container.elasticsearch.enabled=true
+      - xpack.encryptedSavedObjects.encryptionKey=${KIBANA_ENCRYPTION_KEY}
+      - xpack.reporting.encryptionKey=${KIBANA_REPORTING_KEY}
+      - xpack.security.encryptionKey=${KIBANA_SECURITY_KEY}
+    volumes:
+      - ./kibana/config/kibana-optimized.yml:/usr/share/kibana/config/kibana.yml:ro
+      - ./logs/kibana:/usr/share/kibana/logs
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 1g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=kibana,stack=elk"
+
+  # ================================
+  # REDIS BUFFER
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports: ["6379:6379"]
+    command: redis-server /usr/local/etc/redis/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - ./redis/config/redis-optimized.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD","redis-cli","-a","${REDIS_PASSWORD}","ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+        reservations:
+          memory: 2g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=redis,stack=elk"
+
+  # ================================
+  # LOGSTASH PIPELINES
+  # ================================
+  logstash-fast:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: logstash-fast
+    environment:
+      - "LS_JAVA_OPTS=-Xmx4g -Xms4g -XX:+UseG1GC -XX:MaxGCPauseMillis=250"
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config-host
+      - ./logstash/pipeline-fast-optimized:/usr/share/logstash/pipeline-fast
+      - ./logstash/patterns:/usr/share/logstash/patterns
+      - ./logstash/geoip:/usr/share/logstash/geoip
+      - ./logstash/drivers:/usr/share/logstash/drivers
+      - logstash-data:/usr/share/logstash/data
+    command: >
+      bash -c "
+        cp -f /usr/share/logstash/config-host/logstash-fast-optimized.yml /usr/share/logstash/config/logstash.yml &&
+        cp -f /usr/share/logstash/config-host/pipelines-fast-optimized.yml /usr/share/logstash/config/pipelines.yml &&
+        /usr/local/bin/docker-entrypoint
+      "
+    ports: ["5044:5044","9600:9600"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600/_node/stats/pipelines || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+        reservations:
+          memory: 4g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=logstash-fast,stack=elk"
+
+  logstash-enrich:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: logstash-enrich
+    environment:
+      - "LS_JAVA_OPTS=-Xmx2g -Xms2g -XX:+UseG1GC -XX:MaxGCPauseMillis=250"
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config-host
+      - ./logstash/pipeline-enrich-optimized:/usr/share/logstash/pipeline-enrich
+      - ./logstash/patterns:/usr/share/logstash/patterns
+      - ./logstash/geoip:/usr/share/logstash/geoip
+      - ./logstash/drivers:/usr/share/logstash/drivers
+      - logstash-enrich-data:/usr/share/logstash/data
+    command: >
+      bash -c "
+        cp -f /usr/share/logstash/config-host/logstash-enrich-optimized.yml /usr/share/logstash/config/logstash.yml &&
+        cp -f /usr/share/logstash/config-host/pipelines-enrich-optimized.yml /usr/share/logstash/config/pipelines.yml &&
+        /usr/local/bin/docker-entrypoint
+      "
+    ports: ["5045:5045","9601:9600"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600/_node/stats/pipelines || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      logstash-fast:
+        condition: service_started
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+        reservations:
+          memory: 2g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=logstash-enrich,stack=elk"
+
+  # ================================
+  # BEATS COLLECTION
+  # ================================
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.11.0
+    container_name: metricbeat
+    user: root
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+      - ./metricbeat/metricbeat-full-monitoring.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - ./logs/metricbeat:/var/log/metricbeat
+    healthcheck:
+      test: ["CMD-SHELL", "metricbeat test config || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [monitoring]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=metricbeat,stack=elk"
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    container_name: filebeat
+    user: root
+    command: ["--strict.perms=false"]
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+    volumes:
+      - ./filebeat/filebeat-full-monitoring.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs/filebeat:/var/log/filebeat
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount log directories for Grafana/Prometheus
+      - grafana-logs:/var/log/grafana:ro
+      - prometheus-logs:/var/log/prometheus:ro
+    healthcheck:
+      test: ["CMD-SHELL", "filebeat test output || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [monitoring]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=filebeat,stack=elk"
+
+  # ================================
+  # PROMETHEUS MONITORING
+  # ================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports: ["9090:9090"]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--log.level=info'
+    volumes:
+      - ./prometheus/prometheus-integrated.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+      - prometheus-logs:/var/log/prometheus
+    networks: [monitoring]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=prometheus,stack=monitoring"
+
+  # ================================
+  # NODE EXPORTER
+  # ================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports: ["9100:9100"]
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks: [monitoring]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=node-exporter,stack=monitoring"
+
+  # ================================
+  # GRAFANA VISUALIZATION
+  # ================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_LOG_LEVEL=info
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [monitoring]
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - elasticsearch
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=grafana,stack=monitoring"
+
+  # ================================
+  # ELASTICSEARCH EXPORTER (for Prometheus)
+  # ================================
+  elasticsearch-exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
+    container_name: elasticsearch-exporter
+    ports: ["9114:9114"]
+    command:
+      - '--es.uri=http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200'
+      - '--es.all'
+      - '--es.indices'
+      - '--es.shards'
+      - '--es.snapshots'
+      - '--es.timeout=30s'
+    networks: [monitoring]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=elasticsearch-exporter,stack=monitoring"
+
+# ================================
+# VOLUMES
+# ================================
+volumes:
+  elasticsearch-data: { driver: local }
+  redis-data: { driver: local }
+  logstash-data: { driver: local }
+  logstash-enrich-data: { driver: local }
+  prometheus-data: { driver: local }
+  grafana-data: { driver: local }
+  prometheus-logs: { driver: local }
+  grafana-logs: { driver: local }
+
+# ================================
+# NETWORKS
+# ================================
+networks:
+  monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

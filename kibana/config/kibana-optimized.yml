@@ -1,0 +1,50 @@
+# Production-Ready Kibana Configuration (without SSL)
+server.name: kibana
+server.host: 0.0.0.0
+server.port: 5601
+server.publicBaseUrl: "http://localhost:5601"
+
+# Elasticsearch Configuration
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "${KIBANA_SYSTEM_PASSWORD}"
+
+# Security Configuration
+xpack.security.enabled: true
+xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long_for_encryption"
+xpack.security.encryptionKey: "something_at_least_32_characters_long_for_security"
+xpack.reporting.encryptionKey: "something_at_least_32_characters_long_for_reporting"
+
+# Performance Optimizations
+elasticsearch.requestTimeout: 30000
+elasticsearch.shardTimeout: 30000
+elasticsearch.pingTimeout: 1500
+
+# Monitoring
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+xpack.monitoring.kibana.collection.enabled: true
+
+# License Management
+xpack.license_management.ui.enabled: true
+
+# Logging Configuration
+logging.appenders.file.type: file
+logging.appenders.file.fileName: /usr/share/kibana/logs/kibana.log
+logging.appenders.file.layout.type: json
+logging.loggers:
+  - name: elasticsearch.query
+    level: debug
+
+# Performance Settings
+server.maxPayload: 1048576
+elasticsearch.maxSockets: 10
+elasticsearch.keepAlive: true
+
+# UI Optimizations
+map.includeElasticMapsService: false
+newsfeed.enabled: false
+telemetry.enabled: false
+telemetry.optIn: false
+
+# Dashboard Settings
+dashboard.defaultDarkMode: false
