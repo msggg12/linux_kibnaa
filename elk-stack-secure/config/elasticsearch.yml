@@ -1,0 +1,24 @@
+cluster.name: elk-secure-cluster
+node.name: es01
+network.host: 0.0.0.0
+http.port: 9200
+
+discovery.type: single-node
+
+xpack.security.enabled: true
+xpack.security.http.ssl:
+  enabled: false
+xpack.security.transport.ssl:
+  enabled: false
+
+xpack.monitoring.collection.enabled: true
+
+bootstrap.memory_lock: true
+
+path:
+  repo: ["/usr/share/elasticsearch/snapshots"]
+
+action.destructive_requires_name: true
+
+indices.recovery.max_bytes_per_sec: 200mb
+thread_pool.write.queue_size: 2000

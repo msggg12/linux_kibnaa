@@ -1,0 +1,43 @@
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+metricbeat.modules:
+  - module: system
+    period: 10s
+    metricsets: ["cpu", "load", "memory", "network", "process", "process_summary", "uptime", "socket_summary", "diskio", "filesystem", "fsstat"]
+    processes: ['.*']
+    cpu.metrics: ["percentages", "normalized_percentages"]
+
+  - module: docker
+    period: 10s
+    hosts: ["unix:///var/run/docker.sock"]
+    metricsets: ["container", "cpu", "diskio", "event", "healthcheck", "info", "memory", "network"]
+
+  - module: elasticsearch
+    period: 10s
+    hosts: ["http://elasticsearch:9200"]
+    username: elastic
+    password: ${ELASTIC_PASSWORD}
+    xpack.enabled: true
+
+  - module: logstash
+    period: 10s
+    hosts: ["http://logstash:9600"]
+    xpack.enabled: true
+
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+
+setup.kibana:
+  host: kibana:5601
+  username: elastic
+  password: ${ELASTIC_PASSWORD}
+
+setup.dashboards.enabled: true
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: elastic
+  password: ${ELASTIC_PASSWORD}

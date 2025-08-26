@@ -1,0 +1,67 @@
+groups:
+  - name: infrastructure.rules
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} down"
+          description: "{{ $labels.job }} instance {{ $labels.instance }} has been down for 2+ minutes."
+
+      - alert: HighNodeCPU
+        expr: (avg by(instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU on {{ $labels.instance }}"
+          description: "CPU usage > 80% for 10 minutes."
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Less than 10% free disk space for 10 minutes."
+
+  - name: elk.rules
+    rules:
+      - alert: ElasticsearchClusterRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elasticsearch cluster RED"
+          description: "Cluster health is RED for more than 2 minutes."
+
+      - alert: ElasticsearchClusterYellow
+        expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elasticsearch cluster YELLOW"
+          description: "Cluster health is YELLOW for 10 minutes."
+
+      - alert: LogstashPipelineBackpressure
+        expr: rate(logstash_node_pipeline_events_filtered_total[5m]) < rate(logstash_node_pipeline_events_in_total[5m])
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Logstash pipeline backpressure"
+          description: "Events in > events out for 10 minutes."
+
+      - alert: HighElasticsearchIndexingLatency
+        expr: rate(elasticsearch_indices_indexing_index_time_seconds_total[5m]) / rate(elasticsearch_indices_indexing_index_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High ES indexing latency"
+          description: "Average indexing latency > 50ms over 5m."
