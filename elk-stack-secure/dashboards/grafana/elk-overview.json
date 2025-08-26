@@ -1,0 +1,48 @@
+{
+  "title": "ELK + Infra Overview",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "type": "stat",
+      "title": "ES Cluster Health",
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "sum by(color) (elasticsearch_cluster_health_status)",
+        "legendFormat": "{{color}}"
+      }],
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4}
+    },
+    {
+      "type": "timeseries",
+      "title": "Logstash Events In vs Out",
+      "datasource": "Prometheus",
+      "targets": [
+        {"expr": "rate(logstash_node_pipeline_events_in_total[5m])", "legendFormat": "events_in"},
+        {"expr": "rate(logstash_node_pipeline_events_out_total[5m])", "legendFormat": "events_out"}
+      ],
+      "gridPos": {"x": 8, "y": 0, "w": 16, "h": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Docs Ingest Rate",
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "rate(elasticsearch_indices_docs_total[5m])",
+        "legendFormat": "docs/s"
+      }],
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Node CPU %",
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+        "legendFormat": "{{instance}}"
+      }],
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}
+    }
+  ],
+  "schemaVersion": 37,
+  "version": 1
+}

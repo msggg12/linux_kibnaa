@@ -1,0 +1,7 @@
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+pipeline.workers: 4
+pipeline.unsafe_shutdown: false
+config.reload.automatic: true
+config.reload.interval: 5s
+xpack.monitoring.enabled: true
