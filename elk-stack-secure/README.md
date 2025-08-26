@@ -22,6 +22,23 @@ sed -i 's/changeme-strong/el@st1c-Strong-P@ss/g' .env
 - Grafana: http://localhost:3000 (admin / admin)
 - Prometheus: http://localhost:9090
 
+## Ops Agent (optional)
+Lightweight local API to list/modify configs and manage the stack.
+
+Install:
+```bash
+sudo apt-get install -y python3-venv rsync jq
+cd /opt/elk-stack-secure/ops_agent
+AGENT_TOKEN=$(openssl rand -hex 24) AGENT_PORT=8088 REPO_DIR=/opt/elk-stack-secure ./install.sh
+curl -H "Authorization: Bearer $AGENT_TOKEN" http://127.0.0.1:8088/health
+```
+
+Examples:
+```bash
+curl -H "Authorization: Bearer $AGENT_TOKEN" "http://127.0.0.1:8088/files/tree?dir=config&depth=2" | jq
+curl -X POST -H "Authorization: Bearer $AGENT_TOKEN" -H 'Content-Type: application/json' -d '{"services":[]}' http://127.0.0.1:8088/compose/up | jq
+```
+
 ## Data
 - Elasticsearch data in Docker volume `es-data`
 - Snapshots in volume `es-snapshots` (repo: `local_snapshots`)
