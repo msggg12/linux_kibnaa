@@ -1,0 +1,8 @@
+- pipeline.id: fast-integration
+  path.config: "/usr/share/logstash/pipeline-fast/fast-integration.conf"
+  pipeline.workers: 8
+  pipeline.batch.size: 2000
+  pipeline.batch.delay: 50
+  queue.type: persisted
+  queue.max_events: 100000
+  queue.max_bytes: 2gb

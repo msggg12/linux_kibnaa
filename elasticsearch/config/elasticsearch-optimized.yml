@@ -5,14 +5,11 @@ network.host: 0.0.0.0
 http.port: 9200
 discovery.type: single-node
 
-# Security Configuration with SSL
+# Security Configuration (without SSL for development)
 xpack.security.enabled: true
 xpack.security.enrollment.enabled: true
-xpack.security.http.ssl.enabled: true
-xpack.security.transport.ssl.enabled: true
-xpack.security.http.ssl.keystore.path: certs/http.p12
-xpack.security.transport.ssl.keystore.path: certs/transport.p12
-xpack.security.transport.ssl.truststore.path: certs/transport.p12
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
 
 # Authentication
 xpack.security.authc.realms.native.native1.order: 0
